@@ -1,7 +1,21 @@
 # AI 模型训练研究 — PyTorch
 
-> 技术栈：**PyTorch** + **ONNX**（onnxruntime 推理）
+> 技术栈：**PyTorch** + **ONNX**（onnxruntime 推理）+ **Vue 3**（统一门户前端）
 > 工作区按「模块化」组织：每个模型一个独立项目模块，数据集统一存放，通用工具独立成目录。
+
+## 📸 界面预览
+
+统一门户（单端口 6660）：聊天对话 + 模型识别（MNIST / EuroSAT 一键切换），前端按 UI UX Pro Max 设计系统实现。
+
+<p align="center">
+  <img src="screenshots/chat.png" alt="聊天对话界面" width="720">
+  <br><em>聊天对话（主界面）· 本地 Qwen2.5-0.5B · SSE 流式 · 多会话管理</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/inference.png" alt="模型识别界面" width="720">
+  <br><em>模型识别 · MNIST 手写板 / EuroSAT 上传分类切换模块</em>
+</p>
 
 ## 目录结构
 
