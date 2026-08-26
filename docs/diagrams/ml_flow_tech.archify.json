@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AI 模型训练:技术原理与企业级技术栈",
+    "quality_profile": "showcase",
+    "viewBox": [1650, 750]
+  },
+  "components": [
+    { "id": "c1", "type": "backend", "label": "数据管线", "sublabel": "Dataset · DataLoader · 增强", "pos": [70, 90], "size": [210, 84] },
+    { "id": "c2", "type": "backend", "label": "张量与自动求导", "sublabel": "Tensor · autograd 反向传播", "pos": [380, 90], "size": [210, 84] },
+    { "id": "c3", "type": "backend", "label": "神经网络层", "sublabel": "卷积 · 池化 · 全连接", "pos": [690, 90], "size": [210, 84] },
+    { "id": "c4", "type": "backend", "label": "损失与优化器", "sublabel": "交叉熵 · Adam / SGD", "pos": [1000, 90], "size": [210, 84] },
+    { "id": "c5", "type": "backend", "label": "训练四步循环", "sublabel": "前向 → 损失 → 反向 → 更新", "pos": [70, 260], "size": [210, 84] },
+    { "id": "c6", "type": "external", "label": "PyTorch", "sublabel": "训练框架 · 动态图", "pos": [380, 260], "size": [210, 84] },
+    { "id": "c7", "type": "external", "label": "torchvision", "sublabel": "数据集与图像变换", "pos": [690, 260], "size": [210, 84] },
+    { "id": "c8", "type": "backend", "label": "NumPy / Pillow", "sublabel": "数值计算 · 图像处理", "pos": [1000, 260], "size": [210, 84] },
+    { "id": "c9", "type": "cloud", "label": "GPU / CUDA / AMP", "sublabel": "混合精度加速训练", "pos": [70, 430], "size": [210, 84] },
+    { "id": "c10", "type": "cloud", "label": "分布式训练 DDP", "sublabel": "多卡并行 · 梯度同步", "pos": [380, 430], "size": [210, 84] },
+    { "id": "c11", "type": "database", "label": "实验追踪", "sublabel": "MLflow / TensorBoard", "pos": [690, 430], "size": [210, 84] },
+    { "id": "c13", "type": "database", "label": "模型注册中心", "sublabel": "版本 · 元数据 · 上线审批", "pos": [1000, 430], "size": [210, 84] },
+    { "id": "c12", "type": "cloud", "label": "ONNX Runtime", "sublabel": "跨平台推理引擎", "pos": [70, 600], "size": [210, 84] },
+    { "id": "c14", "type": "cloud", "label": "Docker / K8s", "sublabel": "容器化 · 弹性编排", "pos": [380, 600], "size": [210, 84] },
+    { "id": "c15", "type": "messagebus", "label": "CI/CD 流水线", "sublabel": "自动构建 · 测试 · 发布", "pos": [690, 600], "size": [210, 84] },
+    { "id": "c16", "type": "security", "label": "监控与漂移检测", "sublabel": "指标 · 告警 · 触发重训", "pos": [1000, 600], "size": [210, 84] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "核心原理 · 深度学习五要素", "wraps": ["c1", "c2", "c3", "c4"] },
+    { "kind": "region", "label": "本次实战技术栈", "wraps": ["c5", "c6", "c7", "c8"] },
+    { "kind": "region", "label": "企业级 · 训练提效与模型管理", "wraps": ["c9", "c10", "c11", "c13"] },
+    { "kind": "region", "label": "企业级 · 部署与运维", "wraps": ["c12", "c14", "c15", "c16"] }
+  ],
+  "connections": [
+    { "id": "n-c1-c5", "from": "c1", "to": "c5", "label": "样本批次", "variant": "emphasis", "labelAt": [175, 217] },
+    { "id": "n-c2-c5", "from": "c2", "to": "c5", "label": "求导引擎" },
+    { "id": "n-c6-c5", "from": "c6", "to": "c5", "label": "框架支撑", "labelAt": [250, 358] },
+    { "id": "n-c9-c5", "from": "c9", "to": "c5", "label": "算力加速", "variant": "dashed" },
+    { "id": "n-c5-c11", "from": "c5", "to": "c11", "label": "记录指标", "variant": "dashed", "fromSide": "right", "toSide": "bottom" },
+    { "id": "n-c5-c13", "from": "c5", "to": "c13", "label": "产出权重", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[330, 302], [330, 390], [960, 390], [960, 472], [1000, 472]], "labelAt": [360, 362] },
+    { "id": "n-c13-c12", "from": "c13", "to": "c12", "label": "导出 ONNX", "variant": "emphasis", "fromSide": "left", "toSide": "right", "via": [[960, 472], [960, 560], [300, 560], [300, 642], [280, 642]] },
+    { "id": "n-c12-c14", "from": "c12", "to": "c14", "label": "容器化" },
+    { "id": "n-c15-c14", "from": "c15", "to": "c14", "label": "自动发布", "variant": "dashed" },
+    { "id": "n-c14-c16", "from": "c14", "to": "c16", "label": "线上观测", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom", "via": [[485, 706], [1105, 706], [1105, 684]] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "核心原理: 深度学习五要素",
+      "items": [
+        "数据: 数量与质量决定上限, 预处理管线占 60~80% 工作量",
+        "张量与自动求导: 一切计算与梯度的基础",
+        "网络结构: CNN 卷积提特征 + 池化降尺寸 + 全连接分类",
+        "损失函数: 衡量预测与真实的差距 (交叉熵)",
+        "优化器: 沿梯度更新参数 (Adam / SGD + momentum)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "本次实战用到的技术",
+      "items": [
+        "Python 3.12 + PyTorch 2.13 + torchvision",
+        "NumPy 数据处理 · Pillow 图像读写",
+        "ONNX Runtime 跨平台推理引擎",
+        "HTTP 服务 (serve.py) + 浏览器前端 (index.html)",
+        "PyInstaller 打包 exe 零依赖交付"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "企业级技术栈(从入门到生产)",
+      "items": [
+        "训练提效: GPU/CUDA、混合精度 AMP、分布式 DDP",
+        "实验管理: MLflow / TensorBoard 追踪指标与超参",
+        "模型管理: 注册中心管版本与上线审批",
+        "部署运维: Docker/K8s 容器化、CI/CD 自动发布",
+        "线上保障: 监控告警、模型漂移检测、A/B 灰度"
+      ]
+    }
+  ]
+}

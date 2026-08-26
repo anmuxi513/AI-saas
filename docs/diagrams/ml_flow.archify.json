@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "AI 模型从数据到交付:企业级全流程",
+    "quality_profile": "showcase",
+    "viewBox": [1600, 720]
+  },
+  "lanes": [
+    { "id": "data", "label": "数据工程" },
+    { "id": "train", "label": "模型训练" },
+    { "id": "model", "label": "评估与模型管理" },
+    { "id": "serve", "label": "服务与交付" },
+    { "id": "know", "label": "知识拓展" }
+  ],
+  "phases": [
+    { "id": "ph-data", "label": "数据工程", "fromCol": 0, "toCol": 1, "variant": "emphasis" },
+    { "id": "ph-train", "label": "模型训练", "fromCol": 2, "toCol": 3 },
+    { "id": "ph-serve", "label": "评估·服务与交付", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "g-train", "label": "训练核心", "lane": "train", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "g-deliver", "label": "交付产物", "lane": "serve", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["d0", "d1", "d2", "t2", "m1", "s1", "v1"],
+  "nodes": [
+    { "id": "d0", "lane": "data", "col": 0, "type": "external", "label": "数据集", "sublabel": "MNIST 6万+1万", "tag": "raw 二进制", "width": 72, "height": 64 },
+    { "id": "d1", "lane": "data", "col": 1, "type": "backend", "label": "数据预处理", "sublabel": "归一化·划分", "tag": "train/val/test", "width": 72, "height": 64 },
+    { "id": "d2", "lane": "data", "col": 3, "type": "backend", "label": "DataLoader", "sublabel": "批量64·打乱", "tag": "张量批次", "width": 72, "height": 64 },
+    { "id": "t1", "lane": "train", "col": 2, "type": "backend", "label": "模型定义", "sublabel": "CNN model.py", "tag": "卷积+全连接", "width": 72, "height": 64 },
+    { "id": "t2", "lane": "train", "col": 3, "type": "backend", "label": "训练循环", "sublabel": "核心四步", "tag": "前向→反向", "width": 72, "height": 64 },
+    { "id": "m1", "lane": "model", "col": 4, "type": "database", "label": "评估与导出", "sublabel": "测试集 99.13%", "tag": "导出 ONNX", "width": 72, "height": 64 },
+    { "id": "s1", "lane": "serve", "col": 4, "type": "cloud", "label": "推理服务", "sublabel": "推理 API", "tag": "serve.py", "width": 72, "height": 64 },
+    { "id": "v1", "lane": "serve", "col": 5, "type": "cloud", "label": "打包交付", "sublabel": "exe 单文件", "tag": "网页·零依赖", "width": 72, "height": 64 },
+    { "id": "k1", "lane": "know", "col": 0, "type": "messagebus", "label": "数据增强", "sublabel": "旋转·缩放", "tag": "提升鲁棒性", "width": 72, "height": 64 },
+    { "id": "k3", "lane": "know", "col": 2, "type": "security", "label": "过拟合检测", "sublabel": "训练/测试差距", "tag": "泛化保障", "width": 72, "height": 64 },
+    { "id": "k2", "lane": "know", "col": 3, "type": "messagebus", "label": "超参数调优", "sublabel": "学习率·epoch", "tag": "影响收敛", "width": 72, "height": 64 },
+    { "id": "k4", "lane": "know", "col": 5, "type": "cloud", "label": "企业级扩展", "sublabel": "Docker/CI/CD", "tag": "规模化部署", "width": 72, "height": 64 }
+  ],
+  "edges": [
+    { "id": "e-d0-d1", "from": "d0", "to": "d1", "label": "下载读取", "role": "main", "route": "straight" },
+    { "id": "e-d1-d2", "from": "d1", "to": "d2", "label": "批量张量", "role": "main" },
+    { "id": "e-d2-t2", "from": "d2", "to": "t2", "label": "训练批次", "variant": "emphasis", "role": "main", "labelAt": [430, 165] },
+    { "id": "e-t1-t2", "from": "t1", "to": "t2", "label": "CNN 结构", "role": "branch", "route": "straight" },
+    { "id": "e-t2-m1", "from": "t2", "to": "m1", "label": "评估达标", "role": "main", "fromSide": "bottom", "toSide": "top", "route": "drop", "labelAt": [465, 289] },
+    { "id": "e-m1-s1", "from": "m1", "to": "s1", "label": "ONNX 部署", "role": "main", "labelAt": [500, 413] },
+    { "id": "e-s1-v1", "from": "s1", "to": "v1", "label": "整合打包", "variant": "emphasis", "role": "main" },
+    { "id": "e-d1-k1", "from": "d1", "to": "k1", "label": "随机变换", "variant": "dashed", "role": "branch" },
+    { "id": "e-t1-k2", "from": "t1", "to": "k2", "label": "调参", "variant": "dashed", "role": "branch", "labelDy": -10 },
+    { "id": "e-m1-k3", "from": "m1", "to": "k3", "label": "泛化检查", "variant": "dashed", "role": "branch", "fromSide": "left", "via": [[420, 367], [420, 410], [336, 410], [336, 459]] },
+    { "id": "e-v1-k4", "from": "v1", "to": "k4", "label": "规模化", "variant": "dashed", "role": "branch", "labelAt": [625, 537] }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "企业级 ML 流程五阶段",
+      "items": [
+        "数据工程 → 模型训练 → 评估导出 → 服务化 → 打包交付",
+        "每个阶段有明确产出物: 数据集 / 权重 / ONNX / API / exe",
+        "阶段间设门禁: 测试集达标才允许导出部署",
+        "数据、代码、模型、部署配置全部纳入版本管理"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "本次实战落地清单",
+      "items": [
+        "数据: MNIST raw → processed (torchvision)",
+        "训练: model.py + mnist_train.py → mnist_cnn.pth",
+        "评估: 测试集 99.13%, 训练/测试差距 0.4% 无过拟合",
+        "服务: serve.py + onnxruntime + /api/predict",
+        "交付: MNIST识别服务.exe 单文件, 对方零依赖"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "关键知识点",
+      "items": [
+        "置信度 ≠ 正确率: 84% 置信度也会认错数字",
+        "输入必须与训练分布一致: 反色/笔画粗细/透明通道",
+        "预处理管线占实战 60~80% 工作量",
+        "ONNX 一次导出, Python/JS/Java/浏览器多平台复用"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 模型训练知识图谱 · 全流程 / 技术栈 / 框架对比</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #0b0f1a; color: #e8ecf5;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 18px;
+    padding: 12px 22px; background: #10172a;
+    border-bottom: 1px solid #223052; flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: .5px; white-space: nowrap; }
+  header .sub { color: #8fa0c0; font-size: 12px; white-space: nowrap; }
+  nav { display: flex; gap: 8px; margin-left: auto; }
+  nav button {
+    background: #182238; color: #b9c6e0; border: 1px solid #2a3550;
+    padding: 8px 18px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    transition: all .15s; white-space: nowrap;
+  }
+  nav button:hover { background: #22304d; color: #e8ecf5; }
+  nav button.active {
+    background: #3b82f6; border-color: #3b82f6; color: #fff; font-weight: 600;
+  }
+  main { flex: 1; position: relative; min-height: 0; }
+  iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; background: #0b0f1a;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🧠 AI 模型训练知识图谱</h1>
+    <span class="sub">三张图 · 可缩放 / 搜索 / 明暗主题 / 导出 PNG</span>
+    <nav id="tabs">
+      <button data-src="ml_flow_pipeline.html" class="active">① 全流程: 数据→训练→服务→交付</button>
+      <button data-src="ml_flow_tech.html">② 技术原理与企业级技术栈</button>
+      <button data-src="ml_flow_frameworks.html">③ 主流框架全流程对比</button>
+    </nav>
+  </header>
+  <main>
+    <iframe id="view" src="ml_flow_pipeline.html" title="AI 模型训练知识图谱"></iframe>
+  </main>
+<script>
+  const tabs = document.querySelectorAll('#tabs button');
+  const view = document.getElementById('view');
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      view.src = btn.dataset.src;
+    });
+  });
+</script>
+</body>
+</html>

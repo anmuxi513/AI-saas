@@ -1,0 +1,55 @@
+/* ============================================================
+   Design Tokens — 来自 design-system/ai-training-platform/MASTER.md
+   （UI UX Pro Max skill 生成，勿手改语义，改设计先改 MASTER.md）
+   风格: Minimalism & Swiss Style（企业级）
+   ============================================================ */
+
+:root {
+  /* ---- 颜色 Color Palette ---- */
+  --color-primary: #1e40af;
+  --color-on-primary: #ffffff;
+  --color-secondary: #3b82f6;
+  --color-on-secondary: #000000;
+  --color-accent: #16a34a; /* CTA（service green） */
+  --color-on-accent: #000000;
+  --color-background: #eff6ff;
+  --color-foreground: #1e3a8a;
+  --color-card: #ffffff;
+  --color-card-foreground: #1e3a8a;
+  --color-muted: #e9eff5;
+  --color-muted-foreground: #475569;
+  --color-border: #bfdbfe;
+  --color-destructive: #dc2626;
+  --color-on-destructive: #ffffff;
+  --color-ring: #1e40af;
+
+  /* ---- 字体 Typography ----
+     Outfit（标题）/ Work Sans（正文），已通过 @fontsource 本地化，
+     不依赖 Google Fonts 网络 */
+  --font-heading: 'Outfit', 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-body: 'Work Sans', -apple-system, 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Fira Code', Consolas, 'Courier New', monospace;
+
+  /* ---- 间距 Spacing ---- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* ---- 阴影 Shadow（Swiss 风格：干净利落） ---- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(30, 64, 175, 0.08);
+  --shadow-lg: 0 10px 24px rgba(30, 64, 175, 0.12);
+  --shadow-xl: 0 20px 40px rgba(30, 64, 175, 0.16);
+
+  /* ---- 圆角/动效 ---- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+}

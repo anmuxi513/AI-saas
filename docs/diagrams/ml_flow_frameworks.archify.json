@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "主流深度学习框架:全流程对比",
+    "quality_profile": "showcase",
+    "viewBox": [1450, 760]
+  },
+  "lanes": [
+    { "id": "torch", "label": "PyTorch · Meta 开源 · 动态图 · 科研首选" },
+    { "id": "tf", "label": "TensorFlow · Google · 工业部署成熟" },
+    { "id": "paddle", "label": "PaddlePaddle · 百度 · 中文生态完善" },
+    { "id": "jax", "label": "JAX · Google · 函数式科研" }
+  ],
+  "phases": [
+    { "id": "ph-data", "label": "数据准备", "fromCol": 0, "toCol": 0 },
+    { "id": "ph-model", "label": "模型定义", "fromCol": 1, "toCol": 1 },
+    { "id": "ph-train", "label": "训练评估", "fromCol": 2, "toCol": 2, "variant": "emphasis" },
+    { "id": "ph-export", "label": "导出转换", "fromCol": 4, "toCol": 4 },
+    { "id": "ph-deploy", "label": "部署服务", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["p1", "p2", "p3", "p4", "p5"],
+  "nodes": [
+    { "id": "p1", "lane": "torch", "col": 0, "type": "backend", "label": "DataLoader", "sublabel": "批量·增强", "tag": "Dataset", "width": 72, "height": 64 },
+    { "id": "p2", "lane": "torch", "col": 1, "type": "backend", "label": "nn.Module", "sublabel": "动态计算图", "width": 72, "height": 64 },
+    { "id": "p3", "lane": "torch", "col": 2, "type": "backend", "label": "训练循环", "sublabel": "autograd·Adam", "width": 72, "height": 64 },
+    { "id": "p4", "lane": "torch", "col": 4, "type": "database", "label": "ONNX 导出", "sublabel": "通用格式", "tag": "TorchScript", "width": 72, "height": 64 },
+    { "id": "p5", "lane": "torch", "col": 5, "type": "cloud", "label": "ONNX 推理", "sublabel": "跨平台", "tag": "Runtime", "width": 72, "height": 64 },
+    { "id": "t1", "lane": "tf", "col": 0, "type": "backend", "label": "tf.data", "sublabel": "数据管道", "width": 72, "height": 64 },
+    { "id": "t2", "lane": "tf", "col": 1, "type": "backend", "label": "Keras API", "sublabel": "层级建模", "width": 72, "height": 64 },
+    { "id": "t3", "lane": "tf", "col": 2, "type": "backend", "label": "model.fit", "sublabel": "内置训练", "width": 72, "height": 64 },
+    { "id": "t4", "lane": "tf", "col": 4, "type": "database", "label": "SavedModel", "sublabel": "标准格式", "width": 72, "height": 64 },
+    { "id": "t5", "lane": "tf", "col": 5, "type": "cloud", "label": "TF Serving", "sublabel": "生产服务", "width": 72, "height": 64 },
+    { "id": "a1", "lane": "paddle", "col": 0, "type": "backend", "label": "paddle.io", "sublabel": "数据体系", "width": 72, "height": 64 },
+    { "id": "a2", "lane": "paddle", "col": 1, "type": "backend", "label": "paddle.nn", "sublabel": "Layer 动态图", "width": 72, "height": 64 },
+    { "id": "a3", "lane": "paddle", "col": 2, "type": "backend", "label": "Paddle", "sublabel": "Model 训练", "width": 72, "height": 64 },
+    { "id": "a4", "lane": "paddle", "col": 4, "type": "database", "label": "Paddle 推理", "sublabel": "高性能库", "width": 72, "height": 64 },
+    { "id": "a5", "lane": "paddle", "col": 5, "type": "cloud", "label": "Paddle 服务", "sublabel": "服务化部署", "width": 72, "height": 64 },
+    { "id": "j1", "lane": "jax", "col": 0, "type": "backend", "label": "数组流水线", "sublabel": "XLA 编译", "width": 72, "height": 64 },
+    { "id": "j2", "lane": "jax", "col": 1, "type": "backend", "label": "Flax", "sublabel": "函数式建模", "tag": "Haiku", "width": 72, "height": 64 },
+    { "id": "j3", "lane": "jax", "col": 2, "type": "backend", "label": "jit+grad", "sublabel": "自动微分", "width": 72, "height": 64 },
+    { "id": "j4", "lane": "jax", "col": 4, "type": "database", "label": "XLA 产物", "sublabel": "HLO 表示", "width": 72, "height": 64 },
+    { "id": "j5", "lane": "jax", "col": 5, "type": "cloud", "label": "云端 TPU", "sublabel": "Cloud 部署", "width": 72, "height": 64 }
+  ],
+  "edges": [
+    { "id": "e-p1-p2", "from": "p1", "to": "p2", "role": "main" },
+    { "id": "e-p2-p3", "from": "p2", "to": "p3", "role": "main", "fromSide": "bottom", "toSide": "bottom", "via": [[220, 186], [300, 186]] },
+    { "id": "e-p3-p4", "from": "p3", "to": "p4", "role": "main" },
+    { "id": "e-p4-p5", "from": "p4", "to": "p5", "role": "main" },
+    { "id": "e-t1-t2", "from": "t1", "to": "t2", "role": "main" },
+    { "id": "e-t2-t3", "from": "t2", "to": "t3", "role": "main", "fromSide": "bottom", "toSide": "bottom", "via": [[220, 310], [300, 310]] },
+    { "id": "e-t3-t4", "from": "t3", "to": "t4", "role": "main" },
+    { "id": "e-t4-t5", "from": "t4", "to": "t5", "role": "main" },
+    { "id": "e-a1-a2", "from": "a1", "to": "a2", "role": "main" },
+    { "id": "e-a2-a3", "from": "a2", "to": "a3", "role": "main", "fromSide": "bottom", "toSide": "bottom", "via": [[220, 434], [300, 434]] },
+    { "id": "e-a3-a4", "from": "a3", "to": "a4", "role": "main" },
+    { "id": "e-a4-a5", "from": "a4", "to": "a5", "role": "main" },
+    { "id": "e-j1-j2", "from": "j1", "to": "j2", "role": "main" },
+    { "id": "e-j2-j3", "from": "j2", "to": "j3", "role": "main", "fromSide": "bottom", "toSide": "bottom", "via": [[220, 558], [300, 558]] },
+    { "id": "e-j3-j4", "from": "j3", "to": "j4", "role": "main" },
+    { "id": "e-j4-j5", "from": "j4", "to": "j5", "role": "main" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "框架定位对比",
+      "items": [
+        "PyTorch: 动态图直观, 科研论文首选, 生态 HuggingFace",
+        "TensorFlow: Keras 高层 API, 生产部署体系最成熟 (TF Serving)",
+        "PaddlePaddle: 国产框架, 中文文档与模型库丰富, 信创适配",
+        "JAX: 函数式 + 即时编译, 科研前沿, 适合自定义研究",
+        "其他: MindSpore (华为全场景), MXNet (已停止维护)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "全流程共性: 五阶段对所有框架一致",
+      "items": [
+        "数据准备 → 模型定义 → 训练评估 → 导出转换 → 部署服务",
+        "你学会的 PyTorch 流程, 换框架只是换 API 名称",
+        "图中每一行就是一个完整 pipeline (与本项目实战同构)",
+        "ONNX 是跨框架通用交换格式: 任意框架训练, 统一部署"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "选型建议",
+      "items": [
+        "科研 / 快速原型: PyTorch 或 JAX",
+        "工业大规模部署: TensorFlow + TF Serving",
+        "国内业务 / 信创环境: PaddlePaddle 或 MindSpore",
+        "跨框架部署: 训练任选, 导出 ONNX + ONNX Runtime 通用"
+      ]
+    }
+  ]
+}

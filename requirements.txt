@@ -1,0 +1,8 @@
+# AI 模型训练（PyTorch）依赖
+# CPU 版；GPU 版请按 README 中的官网命令安装
+torch>=2.2
+torchvision>=0.17
+
+# 语言对话模块（projects/chat）：本地对话模型 + Gradio 界面
+transformers>=4.46
+gradio>=5.0
