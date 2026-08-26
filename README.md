@@ -19,56 +19,58 @@
 
 ## 目录结构
 
+> 按「层」组织：**数据层 / 模型层（项目）/ 服务层 / 前端层 / 工具与文档**
+
 ```
 AI模型训练_PyTorch/
-├── projects/            # ★ 模型项目模块（每个模型一个目录，互不干扰）
+├── datasets/            # ★ 数据层：所有数据集（torchvision 直接识别，不入库）
+│   ├── mnist/               MNIST（含 MNIST/raw）
+│   ├── fashion/             FashionMNIST
+│   └── eurosat/             EuroSAT（2750/ 全量图、subset/ 训练子集、划分 txt、zip）
+├── projects/            # ★ 模型层：模型项目模块（每个模型一个目录，互不干扰）
 │   ├── mnist/           #   MNIST 手写数字识别（入门 CNN + ONNX 部署全流程）
 │   │   ├── model.py        模型结构（唯一来源）
 │   │   ├── train.py        训练 → models/mnist_cnn.pth
 │   │   ├── predict.py      PyTorch 推理（测试集/自己的图片）
 │   │   ├── export_onnx.py  导出 ONNX → models/mnist_cnn.onnx
 │   │   ├── onnx_predict.py onnxruntime 推理（验证导出结果）
-│   │   ├── models/         权重与 ONNX 模型
-│   │   └── deploy/         交付包（自包含：网页+服务+exe，可直接打包发给别人）
+│   │   ├── models/         权重与 ONNX 模型（不入库）
+│   │   └── deploy/         交付包（自包含：服务+exe，可直接打包发给别人）
 │   ├── fashion/         #   FashionMNIST 衣物分类（迁移学习实验）
 │   │   ├── transfer_learning.py      MNIST→FashionMNIST 迁移对比实验
 │   │   ├── imagenet_inference.py     ImageNet 预训练 ResNet18 推理体验
 │   │   ├── resnet_transfer_template.py  新数据集迁移学习模板
-│   │   └── models/         fashion_cnn_transferred.pth
-│   └── eurosat/         #   EuroSAT 遥感图像分类（企业级迁移学习 + ONNX 服务）
-│       ├── train.py         训练 → models/eurosat_resnet18.pth
-│       ├── export.py        导出 ONNX → models/eurosat_resnet18.onnx
-│       ├── serve.py         HTTP 推理服务（端口 8001，网页 demo.html）
-│       ├── e2e_test.py      端到端测试（真实测试图 → 服务 → 结果）
-│       └── models/          eurosat_resnet18.pth / .onnx
-│   └── chat/            #   语言对话（本地 Qwen2.5-0.5B，持续对话界面）
+│   │   └── models/         fashion_cnn_transferred.pth（不入库）
+│   ├── eurosat/         #   EuroSAT 遥感图像分类（企业级迁移学习 + ONNX 服务）
+│   │   ├── train.py         训练 → models/eurosat_resnet18.pth
+│   │   ├── export.py        导出 ONNX → models/eurosat_resnet18.onnx
+│   │   ├── serve.py         独立推理服务（端口 8001，备用）
+│   │   ├── e2e_test.py      端到端测试（真实测试图 → 服务 → 结果）
+│   │   └── models/          eurosat_resnet18.pth / .onnx（不入库）
+│   └── chat/            #   语言对话（本地 Qwen2.5-0.5B）
 │       ├── model.py         模型加载唯一入口（权重缓存到 models/）
 │       ├── chat.py          对话引擎（多轮历史 + 流式生成）
-│       ├── app.py           Gradio 持续对话界面（端口 7860，流式输出）
 │       ├── test_chat.py     命令行冒烟测试
-│       └── models/          HuggingFace 权重缓存（约 1GB，gitignore）
-├── datasets/            # ★ 所有数据集（torchvision 直接识别）
-│   ├── mnist/               MNIST（含 MNIST/raw）
-│   ├── fashion/             FashionMNIST
-│   └── eurosat/             EuroSAT（2750/ 全量图、subset/ 训练子集、划分 txt、zip）
-├── shared/              # ★ 通用工具（不依赖具体模型）
+│       └── models/          HuggingFace 权重缓存（约 1GB，不入库）
+├── server/              # ★ 服务层：统一门户（单端口 6660，推荐入口）
+│   └── app.py              静态托管 + 聊天 SSE + MNIST/EuroSAT 推理
+├── frontend/            # ★ 前端层：Vue 3 界面（聊天对话 + 模型识别）
+│   ├── src/                 views/ 页面 · components/ 组件 · stores/ 状态 · styles/ 设计令牌
+│   └── dist/                npm run build 产物（门户托管，不入库）
+├── shared/              # ★ 工具层：通用工具（不依赖具体模型）
 │   ├── check_env.py        环境检查（PyTorch/CUDA/GPU）
 │   ├── inspect_image.py    图片诊断（为什么模型认错你的图）
 │   └── parse_raw.py        解析 MNIST raw 二进制格式
 ├── docs/                # 文档与图表
 │   ├── 学习笔记.md
+│   ├── screenshots/        界面截图（含 chat 历史归档）
 │   └── diagrams/            ml_flow* 架构图（archify 生成）
-├── frontend/            # ★ Vue 3 前端（所有页面的统一实现地，见下方「前端开发规范」）
-│   ├── src/                 views/ 页面、components/ 组件、styles/ 设计令牌
-│   └── design-system 引用   design-system/ai-training-platform/MASTER.md
-├── design-system/       # ★ UI/UX 设计系统（UI UX Pro Max skill 生成）
-│   └── ai-training-platform/
-│       ├── MASTER.md           全局设计规范（颜色/字体/间距/组件，唯一事实来源）
-│       └── pages/              页面级覆盖（可选，优先级高于 MASTER）
-├── skills/              # ★ 第三方 skill 源码
-│   └── ui-ux-pro-max-skill/    UI UX Pro Max 设计智能 skill（含 search.py 搜索引擎）
+├── design-system/       # UI 设计规范（UI UX Pro Max skill 生成）
+│   └── ai-training-platform/MASTER.md   全局设计规范（唯一事实来源）
+├── screenshots/         # README 用界面截图
+├── skills/              # 第三方 skill 源码（不入库，见版本库说明）
 ├── README.md            本文件
-└── requirements.txt     依赖清单（torch / torchvision；推理另需 onnxruntime pillow）
+└── requirements.txt     依赖清单
 ```
 
 ## 快速开始
@@ -138,7 +140,7 @@ python projects/chat/app.py                # 持续对话界面 http://localhost
 所有功能整合在一个服务里，浏览器打开 **http://localhost:6660**：
 
 ```bash
-python projects/portal/app.py
+python server/app.py
 ```
 
 | 功能 | 入口 | 说明 |
@@ -190,7 +192,7 @@ python projects/portal/app.py
 
 ### 前端与模型服务的对接方式（2026-08 统一架构）
 
-所有页面与模型服务已整合进**单端口门户**（`projects/portal/app.py`，6660），
+所有页面与模型服务已整合进**单端口门户**（`server/app.py`，6660），
 旧的独立 HTML 页面（mnist index.html、eurosat demo.html、chat 样式等）已删除
 （备份在系统临时目录），`mnist/deploy/serve.py`、`eurosat/serve.py` 保留但不再是主入口：
 

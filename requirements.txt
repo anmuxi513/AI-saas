@@ -3,6 +3,12 @@
 torch>=2.2
 torchvision>=0.17
 
-# 语言对话模块（projects/chat）：本地对话模型 + Gradio 界面
+# 语言对话模块（projects/chat）：本地对话模型
 transformers>=4.46
+
+# 统一门户服务（server/）：ONNX 推理 + 图片处理
+onnxruntime>=1.18
+pillow>=10.0
+
+# 旧版聊天界面（projects/chat/app.py，已退役，可选）
 gradio>=5.0

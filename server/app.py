@@ -30,7 +30,7 @@ from PIL import Image
 
 # ---------------- 路径 ----------------
 BASE = os.path.dirname(os.path.abspath(__file__))
-WORKSPACE = os.path.abspath(os.path.join(BASE, "..", ".."))
+WORKSPACE = os.path.abspath(os.path.join(BASE, ".."))   # server/ 为顶层服务层
 DIST = os.path.join(WORKSPACE, "frontend", "dist")
 INDEX = os.path.join(DIST, "index.html")
 
