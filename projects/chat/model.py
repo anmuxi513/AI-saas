@@ -25,10 +25,11 @@ import os
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
-MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
+MODEL_NAME = os.environ.get("QWEN_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-MODELS_DIR = os.path.join(BASE, "models")
+# 模型缓存目录：默认脚本同级 models/；打包版通过 QWEN_MODEL_DIR 指定
+MODELS_DIR = os.environ.get("QWEN_MODEL_DIR") or os.path.join(BASE, "models")
 
 # 模型加载时打印的消息
 _INIT_MSG = f"正在加载模型 {MODEL_NAME}（首次运行会从 HuggingFace 下载约 1GB，请耐心等待）..."

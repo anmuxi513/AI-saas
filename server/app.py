@@ -29,14 +29,29 @@ import numpy as np
 from PIL import Image
 
 # ---------------- 路径 ----------------
-BASE = os.path.dirname(os.path.abspath(__file__))
-WORKSPACE = os.path.abspath(os.path.join(BASE, ".."))   # server/ 为顶层服务层
-DIST = os.path.join(WORKSPACE, "frontend", "dist")
-INDEX = os.path.join(DIST, "index.html")
+# 打包版（PyInstaller）: 资源在 _MEIPASS，用户数据在 exe 同目录
+if getattr(sys, "frozen", False):
+    BASE = sys._MEIPASS
+    WORKSPACE = BASE
+    APP_DIR = os.path.dirname(sys.executable)            # exe 所在目录
+    DIST = os.path.join(BASE, "frontend", "dist")
+    INDEX = os.path.join(DIST, "index.html")
+    MNIST_ONNX = os.path.join(BASE, "models", "mnist_cnn.onnx")
+    EUROSAT_ONNX = os.path.join(BASE, "models", "eurosat_resnet18.onnx")
+    CLASS_NAMES = os.path.join(BASE, "datasets", "eurosat", "class_names.json")
+    CHAT_MODEL_DIR = os.path.join(APP_DIR, "chat_model", "Qwen2.5-0.5B-Instruct")
+else:
+    BASE = os.path.dirname(os.path.abspath(__file__))
+    WORKSPACE = os.path.abspath(os.path.join(BASE, ".."))   # server/ 为顶层服务层
+    APP_DIR = WORKSPACE
+    DIST = os.path.join(WORKSPACE, "frontend", "dist")
+    INDEX = os.path.join(DIST, "index.html")
+    MNIST_ONNX = os.path.join(WORKSPACE, "projects", "mnist", "deploy", "mnist_cnn.onnx")
+    EUROSAT_ONNX = os.path.join(WORKSPACE, "projects", "eurosat", "models", "eurosat_resnet18.onnx")
+    CLASS_NAMES = os.path.join(WORKSPACE, "datasets", "eurosat", "class_names.json")
+    CHAT_MODEL_DIR = ""
 
 CHAT_DIR = os.path.join(WORKSPACE, "projects", "chat")
-MNIST_DIR = os.path.join(WORKSPACE, "projects", "mnist", "deploy")
-EUROSAT_DIR = os.path.join(WORKSPACE, "projects", "eurosat")
 
 PORT = 6660   # 注意: 6665-6669 被浏览器列为不安全端口（IRC），不可用
 MAX_SESSIONS = 20          # 聊天会话上限（超出淘汰最旧）
@@ -58,14 +73,12 @@ MIME = {
 import onnxruntime as ort
 
 _mnist_session = ort.InferenceSession(
-    os.path.join(MNIST_DIR, "mnist_cnn.onnx"), providers=["CPUExecutionProvider"])
+    MNIST_ONNX, providers=["CPUExecutionProvider"])
 print("✅ MNIST 模型加载成功", flush=True)
 
 _eurosat_session = ort.InferenceSession(
-    os.path.join(EUROSAT_DIR, "models", "eurosat_resnet18.onnx"),
-    providers=["CPUExecutionProvider"])
-with open(os.path.join(WORKSPACE, "datasets", "eurosat", "class_names.json"),
-          encoding="utf-8") as f:
+    EUROSAT_ONNX, providers=["CPUExecutionProvider"])
+with open(CLASS_NAMES, encoding="utf-8") as f:
     _CLASS_LIST = json.load(f)
 _CLASS_NAMES_CN = {
     "AnnualCrop": "农作物", "Forest": "森林", "HerbaceousVegetation": "草本植被",
@@ -109,7 +122,9 @@ from PIL import Image  # noqa: E402（在 eurosat 预处理前导入）
 
 
 # ---------------- 聊天引擎（后台预加载，约 1GB 权重） ----------------
-sys.path.insert(0, CHAT_DIR)
+if not getattr(sys, "frozen", False):
+    # 源码运行: projects/chat 需加入搜索路径；打包版由 PyInstaller 收集（--paths）
+    sys.path.insert(0, CHAT_DIR)
 from chat import ChatEngine  # noqa: E402
 
 _chat_ready = False
@@ -121,6 +136,15 @@ def _load_chat_model():
     """后台线程: 预加载语言模型，加载完成前聊天接口返回 503。"""
     global _chat_ready, _chat_error
     try:
+        if getattr(sys, "frozen", False):
+            # 打包版：模型需先通过 tools/下载聊天模型 安装到 exe 旁 chat_model/
+            if not os.path.isdir(CHAT_MODEL_DIR) or not os.listdir(CHAT_MODEL_DIR):
+                _chat_error = ("聊天模型未安装：请运行同目录下「下载聊天模型.exe」（约 1GB，"
+                               "自动使用国内镜像下载）。下载完成后重启本程序即可对话。")
+                print(f"⚠️  {_chat_error}", flush=True)
+                return
+            os.environ["QWEN_MODEL_NAME"] = CHAT_MODEL_DIR
+            os.environ["QWEN_MODEL_DIR"] = os.path.dirname(CHAT_MODEL_DIR)
         from model import get_model
         get_model()
         _chat_ready = True

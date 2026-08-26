@@ -29,7 +29,10 @@ const statusText = computed(() => {
   const s = chat.status
   if (s.loading) return { text: '模型加载中', cls: 'warn' }
   if (s.chat_ready) return { text: '服务就绪', cls: 'ok' }
-  if (s.chat_error) return { text: '加载失败', cls: 'err' }
+  if (s.chat_error) {
+    const brief = s.chat_error.length > 26 ? `${s.chat_error.slice(0, 26)}…` : s.chat_error
+    return { text: brief, cls: 'err', detail: s.chat_error }
+  }
   return { text: '连接中', cls: 'warn' }
 })
 
@@ -80,7 +83,7 @@ onMounted(() => {
         </router-link>
       </nav>
 
-      <div class="sidebar-foot">
+      <div class="sidebar-foot" :title="statusText.detail">
         <span class="status-dot" :class="statusText.cls" aria-hidden="true"></span>
         <span class="foot-text">{{ statusText.text }}</span>
         <span class="foot-ver mono">v0.1</span>
