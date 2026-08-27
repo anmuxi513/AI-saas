@@ -1,10 +1,12 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore } from './stores/chat'
+import ModelDownloadDialog from './components/ModelDownloadDialog.vue'
 
 const route = useRoute()
 const chat = useChatStore()
+const modelDialog = ref(null)
 
 const navItems = [
   { name: '聊天对话', to: '/chat', icon: 'chat', desc: '与本地 AI 对话' },
@@ -83,9 +85,18 @@ onMounted(() => {
         </router-link>
       </nav>
 
-      <div class="sidebar-foot" :title="statusText.detail">
+      <div
+        class="sidebar-foot"
+        :title="statusText.detail"
+        :class="{ 'foot-clickable': statusText.cls === 'err' }"
+        role="button"
+        :tabindex="statusText.cls === 'err' ? 0 : undefined"
+        @click="statusText.cls === 'err' && modelDialog?.open()"
+        @keydown.enter="statusText.cls === 'err' && modelDialog?.open()"
+      >
         <span class="status-dot" :class="statusText.cls" aria-hidden="true"></span>
         <span class="foot-text">{{ statusText.text }}</span>
+        <span v-if="statusText.cls === 'err'" class="foot-dl" aria-hidden="true">点击安装</span>
         <span class="foot-ver mono">v0.1</span>
       </div>
     </aside>
@@ -109,6 +120,9 @@ onMounted(() => {
         <router-view />
       </main>
     </div>
+
+    <!-- 聊天模型下载弹窗 -->
+    <ModelDownloadDialog ref="modelDialog" />
   </div>
 </template>
 
@@ -208,6 +222,19 @@ onMounted(() => {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
+}
+.foot-clickable {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.foot-clickable:hover { background: rgba(255, 255, 255, 0.07); }
+.foot-dl {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.14);
+  padding: 2px 8px;
+  border-radius: 999px;
 }
 .status-dot {
   width: 8px;

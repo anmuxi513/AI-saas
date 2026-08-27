@@ -27,6 +27,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 # ---------------- 路径 ----------------
 # 打包版（PyInstaller）: 资源在 _MEIPASS，用户数据在 exe 同目录
@@ -49,7 +50,11 @@ else:
     MNIST_ONNX = os.path.join(WORKSPACE, "projects", "mnist", "deploy", "mnist_cnn.onnx")
     EUROSAT_ONNX = os.path.join(WORKSPACE, "projects", "eurosat", "models", "eurosat_resnet18.onnx")
     CLASS_NAMES = os.path.join(WORKSPACE, "datasets", "eurosat", "class_names.json")
-    CHAT_MODEL_DIR = ""
+
+# 聊天模型目录统一约定: <程序目录>/chat_model/Qwen2.5-0.5B-Instruct
+# （打包版 = exe 旁；源码版 = 工作区根，均可通过应用内下载功能安装）
+CHAT_MODEL_DIR = os.path.join(APP_DIR, "chat_model", "Qwen2.5-0.5B-Instruct")
+CHAT_MODEL_REPO = "Qwen/Qwen2.5-0.5B-Instruct"
 
 CHAT_DIR = os.path.join(WORKSPACE, "projects", "chat")
 
@@ -132,19 +137,30 @@ _chat_error = None
 _loading_msg = "⏳ 聊天模型加载中（Qwen2.5-0.5B，约需 10-60 秒）..."
 
 
+def _chat_model_installed() -> bool:
+    """chat_model 目录是否已有权重文件。"""
+    if not os.path.isdir(CHAT_MODEL_DIR):
+        return False
+    for _, _, files in os.walk(CHAT_MODEL_DIR):
+        if any(f.endswith((".safetensors", ".bin")) for f in files):
+            return True
+    return False
+
+
 def _load_chat_model():
     """后台线程: 预加载语言模型，加载完成前聊天接口返回 503。"""
     global _chat_ready, _chat_error
     try:
-        if getattr(sys, "frozen", False):
-            # 打包版：模型需先通过 tools/下载聊天模型 安装到 exe 旁 chat_model/
-            if not os.path.isdir(CHAT_MODEL_DIR) or not os.listdir(CHAT_MODEL_DIR):
-                _chat_error = ("聊天模型未安装：请运行同目录下「下载聊天模型.exe」（约 1GB，"
-                               "自动使用国内镜像下载）。下载完成后重启本程序即可对话。")
-                print(f"⚠️  {_chat_error}", flush=True)
-                return
+        if _chat_model_installed():
+            # 本地模型目录已就绪 → 从本地加载（打包版与源码版统一）
             os.environ["QWEN_MODEL_NAME"] = CHAT_MODEL_DIR
             os.environ["QWEN_MODEL_DIR"] = os.path.dirname(CHAT_MODEL_DIR)
+        elif getattr(sys, "frozen", False):
+            # 打包版且未安装 → 提示用户应用内下载
+            _chat_error = ("聊天模型未安装：点击侧边栏底部「下载聊天模型」按提示安装"
+                           "（约 1GB，支持国内镜像与进度显示）。")
+            print(f"⚠️  {_chat_error}", flush=True)
+            return
         from model import get_model
         get_model()
         _chat_ready = True
@@ -152,6 +168,39 @@ def _load_chat_model():
     except Exception as e:  # noqa: BLE001
         _chat_error = str(e)
         print(f"❌ 聊天模型加载失败: {e}", flush=True)
+
+
+# ---------------- 聊天模型下载（应用内下载 + 进度） ----------------
+# 状态: idle / downloading / done / error
+_DL = {"running": False, "state": "idle", "cur": 0, "total": 0, "error": None}
+_DL_LOCK = threading.Lock()
+
+
+class _DL_Tqdm(tqdm):
+    """把 tqdm 进度同步到 _DL 状态（供 /api/model/status 轮询）。"""
+
+    def update(self, n=1):
+        super().update(n)
+        with _DL_LOCK:
+            _DL["cur"] = int(self.n)
+            _DL["total"] = int(self.total) if self.total else 0
+
+
+def _download_chat_model_task():
+    """后台下载线程：snapshot_download 到 chat_model/，完成后自动加载。"""
+    from huggingface_hub import snapshot_download
+    os.makedirs(os.path.dirname(CHAT_MODEL_DIR), exist_ok=True)
+    snapshot_download(
+        CHAT_MODEL_REPO,
+        local_dir=CHAT_MODEL_DIR,
+        tqdm_class=_DL_Tqdm,
+    )
+    with _DL_LOCK:
+        _DL["running"] = False
+        _DL["state"] = "done"
+        _DL["cur"] = _DL["total"] = 0
+    print("✅ 聊天模型下载完成，开始加载...", flush=True)
+    threading.Thread(target=_load_chat_model, daemon=True).start()
 
 
 threading.Thread(target=_load_chat_model, daemon=True).start()
@@ -232,6 +281,20 @@ class Handler(BaseHTTPRequestHandler):
                 "loading": not _chat_ready and _chat_error is None,
             })
             return
+        if path == "/api/model/status":
+            with _DL_LOCK:
+                dl = dict(_DL)
+            self._send_json({
+                "installed": _chat_model_installed(),
+                "chat_ready": _chat_ready,
+                "downloading": dl["running"],
+                "state": dl["state"],
+                "cur": dl["cur"],
+                "total": dl["total"],
+                "pct": (dl["cur"] / dl["total"] * 100) if dl["total"] else 0,
+                "error": dl["error"],
+            })
+            return
         if path == "/api/chat/list":
             with _SESSIONS_LOCK:
                 sessions = [{
@@ -280,6 +343,19 @@ class Handler(BaseHTTPRequestHandler):
                     SESSIONS.pop(body.get("session_id", ""), None)
                     _META.pop(body.get("session_id", ""), None)
                 self._send_json({"ok": True})
+            elif path == "/api/model/download":
+                with _DL_LOCK:
+                    already = _DL["running"]
+                    if not already:
+                        _DL["running"] = True
+                        _DL["state"] = "downloading"
+                        _DL["cur"] = _DL["total"] = 0
+                        _DL["error"] = None
+                if already:
+                    self._send_json({"started": False, "message": "下载已在进行中"})
+                    return
+                threading.Thread(target=_download_chat_model_task, daemon=True).start()
+                self._send_json({"started": True})
             elif path == "/api/chat/clear":
                 body = self._read_json()
                 engine = _get_session(body.get("session_id", ""))

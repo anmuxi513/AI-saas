@@ -25,14 +25,18 @@ import os
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
-MODEL_NAME = os.environ.get("QWEN_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
+def _model_name() -> str:
+    """模型来源：默认 HF 仓库；应用内下载后指向本地 chat_model 目录。"""
+    return os.environ.get("QWEN_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-# 模型缓存目录：默认脚本同级 models/；打包版通过 QWEN_MODEL_DIR 指定
-MODELS_DIR = os.environ.get("QWEN_MODEL_DIR") or os.path.join(BASE, "models")
+
+def _models_dir() -> str:
+    """模型缓存目录：默认脚本同级 models/；打包版通过 QWEN_MODEL_DIR 指定。"""
+    return os.environ.get("QWEN_MODEL_DIR") or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "models")
 
 # 模型加载时打印的消息
-_INIT_MSG = f"正在加载模型 {MODEL_NAME}（首次运行会从 HuggingFace 下载约 1GB，请耐心等待）..."
+_INIT_MSG = "正在加载语言模型（首次运行会下载约 1GB，请耐心等待）..."
 
 _holder = {"model": None, "tokenizer": None}
 
@@ -42,16 +46,19 @@ def _load():
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    os.makedirs(MODELS_DIR, exist_ok=True)
+    model_name = _model_name()
+    models_dir = _models_dir()
+    os.makedirs(models_dir, exist_ok=True)
+    print(f"📦 加载模型: {model_name}", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(
-        MODEL_NAME,
-        cache_dir=MODELS_DIR,
+        model_name,
+        cache_dir=models_dir,
         trust_remote_code=True,
     )
     # CPU 环境: float32；纯 CPU 版 PyTorch 默认就在 CPU 上，无需 device_map（那需要 accelerate）
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME,
-        cache_dir=MODELS_DIR,
+        model_name,
+        cache_dir=models_dir,
         dtype=torch.float32,
         trust_remote_code=True,
     )

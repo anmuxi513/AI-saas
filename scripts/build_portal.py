@@ -33,24 +33,24 @@ def data(src, dst):
     return os.path.join(ROOT, src) + SEP + dst
 
 
-def build(entry, name, work, extra=None, excludes=None):
+def build(entry, name, work, extra=None, excludes=None, console=True):
     args = [
         entry,
         "--name", name,
         "--onedir",
         "--noconfirm",
         "--clean",
-        "--console",
+        "--console" if console else "--noconsole",
         "--distpath", os.path.join(ROOT, "dist_portal"),
         "--workpath", os.path.join(ROOT, "build_portal", work),
         "--specpath", os.path.join(ROOT, "build_portal", work),
+        "--icon", os.path.join(ROOT, "assets", "app.ico"),
         # 排除无用大模块（gradio 已退役；tkinter/matplotlib 用不到）
         "--exclude-module", "gradio",
         "--exclude-module", "tkinter",
         "--exclude-module", "matplotlib",
         "--exclude-module", "pydoc",
         "--exclude-module", "test",
-        "--icon", os.path.join(ROOT, "assets", "app.ico"),
     ]
     if excludes:
         args += excludes
@@ -77,14 +77,16 @@ def build_portal():
         add_data += ["--add-data", r]
     # 让分析阶段能找到 projects/chat（app.py 运行时才 insert sys.path）
     add_data += ["--paths", os.path.join(ROOT, "projects", "chat")]
-    # 桌面窗口（pywebview）：收集 WebView2 DLL + 后端模块（动态选择）
+    # 桌面窗口（pywebview）：收集 WebView2 DLL + 后端模块（动态选择）+ 启动画面
     import webview as _wv
     wv_lib = os.path.join(os.path.dirname(_wv.__file__), "lib")
     add_data += ["--add-data", wv_lib + SEP + "webview/lib"]
     add_data += ["--hidden-import", "webview.platforms.edgechromium"]
+    add_data += ["--add-data", os.path.join(ROOT, "server", "splash.html") + SEP + "splash.html"]
 
     print("🔨 打包门户服务（桌面应用 + ONNX 模型 + 前端）...")
-    build("server/desktop.py", "AI训练平台", "portal", add_data)
+    # noconsole: 无黑色控制台窗口，日志写入 exe 旁 logs/app.log
+    build("server/desktop.py", "AI训练平台", "portal", add_data, console=False)
     return os.path.join(ROOT, "dist_portal", "AI训练平台")
 
 

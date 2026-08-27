@@ -1,22 +1,49 @@
 """桌面版入口：启动门户服务 + 打开桌面窗口（无需浏览器）。
 
-用法:
-    python server/desktop.py        # 源码运行
-    打包后: AI训练平台.exe 直接双击（PyInstaller 入口改为本文件）
-
-关闭窗口即停止服务并退出程序。
+- 无控制台窗口（打包版 noconsole）：日志写入 <程序目录>/logs/app.log
+- 启动画面 → 服务就绪后自动切换到主应用
+- 关闭窗口即停止服务并退出
 """
 import os
 import sys
 import threading
+import time
+import urllib.request
 
-sys.stdout.reconfigure(encoding="utf-8")
 
-import webview
+def _init_logging():
+    """打包版（windowed，无控制台）: 日志重定向到 <exe 目录>/logs/app.log。
 
-from http.server import ThreadingHTTPServer
+    注意: 不能靠 sys.stdout is None 判断——PyInstaller 6 windowed 模式
+    的 stdout 可能仍是有效句柄（继承父进程管道），需无条件重定向。
+    """
+    if not getattr(sys, "frozen", False):
+        return   # 源码运行: 保留控制台输出
+    try:
+        log_dir = os.path.join(os.path.dirname(sys.executable), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log = open(os.path.join(log_dir, "app.log"), "a", encoding="utf-8", buffering=1)
+        sys.stdout = sys.stderr = log
+    except Exception:  # noqa: BLE001 兜底: 丢弃输出
+        sys.stdout = sys.stderr = open(os.devnull, "w")
 
-import app as portal   # 复用门户服务（模型加载 + 全部 API）
+
+_init_logging()
+
+import webview  # noqa: E402
+from http.server import ThreadingHTTPServer  # noqa: E402
+
+import app as portal  # noqa: E402（复用门户服务：模型加载 + 全部 API）
+
+
+def _splash_url() -> str | None:
+    if getattr(sys, "frozen", False):
+        p = os.path.join(sys._MEIPASS, "splash.html")
+    else:
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "splash.html")
+    if not os.path.isfile(p):
+        return None
+    return "file:///" + p.replace("\\", "/")
 
 
 def main():
@@ -25,17 +52,31 @@ def main():
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     url = f"http://localhost:{portal.PORT}"
     print(f"✅ 服务已启动: {url}", flush=True)
-    print("   桌面窗口即将打开，关闭窗口即退出程序。", flush=True)
 
-    # 桌面窗口（Windows WebView2 内核，系统自带）
+    # 先显示启动画面，服务就绪后自动切换到主应用
+    splash = _splash_url()
     window = webview.create_window(
         "AI 训练平台",
-        url,
+        splash or url,
         width=1280,
         height=840,
         min_size=(980, 640),
         background_color="#10204f",
     )
+
+    def _wait_ready():
+        for _ in range(180):   # 最多等 3 分钟（首次 import 慢）
+            try:
+                with urllib.request.urlopen(url, timeout=2):
+                    break
+            except Exception:  # noqa: BLE001
+                time.sleep(1)
+        try:
+            window.load_url(url)
+        except Exception:  # noqa: BLE001 窗口可能已关闭
+            pass
+
+    threading.Thread(target=_wait_ready, daemon=True).start()
     webview.start()
 
     # 窗口关闭 → 停止服务并退出
