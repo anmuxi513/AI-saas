@@ -11,13 +11,16 @@
 - 深色主题, 消息区限宽居中（ChatGPT 版式）
 
 多会话: 每个会话独立的对话历史（ChatEngine），互不干扰。
+样式文件: chatgpt.css（本文件同目录）
 
-注意: 旧界面样式 chatgpt.css 已随旧页面删除（2026-08 统一 Vue 3 前端重构）。
-当前使用 Gradio 默认主题；后续界面由 frontend/ 的 Vue 3 页面取代。
+实现注意（gradio 6 兼容性）:
+- 事件输入/输出只用 value 组件（Textbox/Button/HTML/Chatbot/State），
+  不用布局组件（Column/Row）作为事件输出
+- 聊天显示历史用 gr.State 传递（Chatbot 组件不作为事件输入）
+- 助手头像用本地文件（data URI 会被 gradio 误解析为文件路径 → 403）
 """
 import os
 import sys
-import urllib.parse
 import uuid
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -34,17 +37,16 @@ PORT = 7860
 MAX_SLOTS = 10  # 侧栏最多显示的会话槽位数
 DEFAULT_SYSTEM = "你是Qwen，一个乐于助人的中文AI助手。请用简洁、准确的中文回答。"
 
-# 旧 chatgpt.css 已删除（统一 Vue 3 前端重构）；暂用 Gradio 默认主题
-CSS = ""
+CSS = open(os.path.join(BASE, "chatgpt.css"), encoding="utf-8").read()
+LOGO_FILE = os.path.join(BASE, "logo.svg")  # 助手头像（本地文件）
 
-# 助手头像（ChatGPT 风格: 圆角方块徽标）
-LOGO_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30">'
-    '<rect width="30" height="30" rx="8" fill="#10a37f"/>'
-    '<text x="15" y="20" font-size="13" fill="#fff" text-anchor="middle" '
-    'font-family="Arial,sans-serif" font-weight="bold">AI</text></svg>'
+WELCOME_HTML = (
+    '<div id="welcome-logo">'
+    '<div class="logo-badge">AI</div>'
+    '<h1>今天有什么可以帮你？</h1>'
+    '<p>本地对话模型 · 支持多轮上下文 · 流式输出</p>'
+    '</div>'
 )
-LOGO = "data:image/svg+xml," + urllib.parse.quote(LOGO_SVG)
 
 print("⏳ 正在启动对话服务，加载模型中...", flush=True)
 get_model()  # 先加载模型，避免浏览器打开后干等
@@ -108,14 +110,10 @@ def slots_update(no_change: bool = False) -> list:
     return outs
 
 
-def meta_out():
-    """顶栏 + 全部侧栏按钮的更新（用于事件链的 then 阶段）。"""
-    return [title_html(), *slots_update()]
-
-
-def noop_out():
-    """与 OUT_META 等长的空更新（槽位为空时的安全返回）。"""
-    return [gr.update()] * (3 + 2 * MAX_SLOTS)
+def welcome_updates(show: bool) -> list:
+    """欢迎区（HTML + 3 示例按钮）的显隐更新。"""
+    vis = gr.update(visible=show)
+    return [vis, vis, vis, vis]
 
 
 # ---------------- 事件处理 ----------------
@@ -123,15 +121,17 @@ def noop_out():
 def new_chat():
     """新建会话: 清空聊天区，回到欢迎屏。"""
     new_session()
-    return [gr.update(visible=False), title_html(), gr.update(value=[]), *slots_update()]
+    return [*welcome_updates(True), title_html(), gr.update(value=[]),
+            gr.update(value=[]), *slots_update()]
 
 
 def open_chat(sid: str):
     """切换会话: 加载该会话的历史。"""
     global ACTIVE
     ACTIVE = sid
-    return [gr.update(visible=False), title_html(),
-            gr.update(value=to_history(SESSIONS[sid]["engine"])), *slots_update()]
+    hist = to_history(SESSIONS[sid]["engine"])
+    return [*welcome_updates(False), title_html(), gr.update(value=hist),
+            gr.update(value=hist), *slots_update()]
 
 
 def delete_chat(sid: str):
@@ -141,17 +141,22 @@ def delete_chat(sid: str):
     if ACTIVE == sid:
         ACTIVE = next(reversed(list(SESSIONS))) if SESSIONS else None
     if ACTIVE is None:
-        return [gr.update(visible=True), title_html(), gr.update(value=[]), *slots_update()]
-    return [gr.update(visible=False), title_html(),
-            gr.update(value=to_history(SESSIONS[ACTIVE]["engine"])), *slots_update()]
+        return [*welcome_updates(True), title_html(), gr.update(value=[]),
+                gr.update(value=[]), *slots_update()]
+    hist = to_history(SESSIONS[ACTIVE]["engine"])
+    return [*welcome_updates(False), title_html(), gr.update(value=hist),
+            gr.update(value=hist), *slots_update()]
 
 
-def respond(message, history):
-    """多轮对话核心: 流式生成，返回 [欢迎屏更新, 聊天区更新]。"""
+def respond(message, state):
+    """多轮对话核心: 流式生成，输出 [欢迎区×4, 聊天区]。
+
+    state: 当前会话的显示历史（gr.State 透传，避免 Chatbot 作为事件输入）。
+    """
     message = (message or "").strip()
-    history = history or []
+    history = list(state or [])
     if not message:
-        yield [gr.update(), history]
+        yield [*welcome_updates(False), history]
         return
     engine = engine_of()
     # 首条消息确定会话标题（ChatGPT 行为）
@@ -161,13 +166,13 @@ def respond(message, history):
     reply = ""
     for chunk in engine.stream_chat(message):
         reply += chunk
-        yield [gr.update(visible=False), history + [{"role": "assistant", "content": reply}]]
+        yield [*welcome_updates(False), history + [{"role": "assistant", "content": reply}]]
 
 
-def post_send():
-    """回复结束后刷新槽位对应关系和顶栏/侧栏（标题可能刚确定）。"""
+def post_send(chatbot_value):
+    """回复结束后: 同步显示历史到 State + 刷新顶栏/侧栏（标题可能刚确定）。"""
     refresh_slot_sids()
-    return meta_out()
+    return [title_html(), gr.update(value=list(chatbot_value or [])), *slots_update()]
 
 
 # ---------------- 界面 ----------------
@@ -198,27 +203,22 @@ with gr.Blocks(title="AI 对话助手") as demo:
     with gr.Column(elem_id="main-col-inner"):
         topbar = gr.HTML(title_html(), elem_id="topbar")
 
-        welcome = gr.Column(visible=True, elem_id="welcome-col")
-        with welcome:
-            gr.HTML(
-                '<div id="welcome-logo">'
-                '<div class="logo-badge">AI</div>'
-                '<h1>今天有什么可以帮你？</h1>'
-                '<p>本地对话模型 · 支持多轮上下文 · 流式输出</p>'
-                '</div>'
-            )
-            with gr.Row(elem_id="example-cards"):
-                ex1 = gr.Button("帮我写一份本周工作周报模板", elem_id="example-card", scale=1)
-                ex2 = gr.Button("用最通俗的话解释什么是机器学习", elem_id="example-card", scale=1)
-                ex3 = gr.Button("Python 入门推荐几本经典书籍", elem_id="example-card", scale=1)
-            gr.HTML('<div id="welcome-hint">对话内容仅保存在本机内存中</div>')
+        welcome_html = gr.HTML(WELCOME_HTML, elem_id="welcome-logo")
+        with gr.Row(elem_id="example-cards"):
+            ex1 = gr.Button("帮我写一份本周工作周报模板", elem_id="example-card", scale=1)
+            ex2 = gr.Button("用最通俗的话解释什么是机器学习", elem_id="example-card", scale=1)
+            ex3 = gr.Button("Python 入门推荐几本经典书籍", elem_id="example-card", scale=1)
+        welcome_hint = gr.HTML('<div id="welcome-hint">对话内容仅保存在本机内存中</div>')
+
+        chat_state = gr.State([])  # 当前会话显示历史（与 chatbot 同步）
 
         chatbot = gr.Chatbot(
             elem_id="chat-window",
             layout="bubble",
             height=520,
-            avatar_images=(None, LOGO),
+            avatar_images=(None, LOGO_FILE),
             placeholder="",
+            show_label=False,
         )
 
         with gr.Row(elem_id="input-row"):
@@ -232,8 +232,12 @@ with gr.Blocks(title="AI 对话助手") as demo:
             send = gr.Button("↑", elem_id="send-btn", scale=1)
 
     # ---------------- 事件绑定 ----------------
-    OUT_META = [welcome, topbar, chatbot, *[c for row in slot_rows for c in row]]
-    TOPBAR_SLOTS = [topbar, *[c for row in slot_rows for c in row]]
+    # 统一输出集合（全部为 value 组件）:
+    # [欢迎HTML, 示例1, 示例2, 示例3, 顶栏, 聊天区, 显示历史State, 20个侧栏按钮]
+    WELCOME_OUTS = [welcome_html, ex1, ex2, ex3]
+    OUT_META = [*WELCOME_OUTS, topbar, chatbot, chat_state,
+                *[c for row in slot_rows for c in row]]
+    OUT_SLOTS = [topbar, chat_state, *[c for row in slot_rows for c in row]]
 
     def _new_chat_wrap():
         out = new_chat()
@@ -242,14 +246,14 @@ with gr.Blocks(title="AI 对话助手") as demo:
 
     def _open_chat_wrap(i):
         if not slot_sids[i]:
-            return noop_out()
+            return [gr.update()] * len(OUT_META)
         out = open_chat(slot_sids[i][0])
         refresh_slot_sids()
         return out
 
     def _delete_chat_wrap(i):
         if not slot_sids[i]:
-            return noop_out()
+            return [gr.update()] * len(OUT_META)
         out = delete_chat(slot_sids[i][0])
         refresh_slot_sids()
         return out
@@ -259,10 +263,10 @@ with gr.Blocks(title="AI 对话助手") as demo:
         b.click(lambda _i=i: _open_chat_wrap(_i), None, OUT_META, api_name=f"open_chat_{i}")
         d.click(lambda _i=i: _delete_chat_wrap(_i), None, OUT_META, api_name=f"delete_chat_{i}")
 
-    # 发送（回车 / 按钮 / 示例卡片）: 流式回复 → 刷新顶栏+侧栏 → 清空输入框
+    # 发送（回车 / 按钮 / 示例卡片）: 流式回复 → 同步State+刷新侧栏 → 清空输入框
     def _bind(trigger, api):
-        trigger(respond, [msg, chatbot], [welcome, chatbot], api_name=api).then(
-            post_send, None, TOPBAR_SLOTS, api_name=None
+        trigger(respond, [msg, chat_state], [*WELCOME_OUTS, chatbot], api_name=api).then(
+            post_send, [chatbot], OUT_SLOTS, api_name=None
         ).then(lambda: "", None, msg, api_name=None)
 
     _bind(msg.submit, "send")
@@ -270,8 +274,8 @@ with gr.Blocks(title="AI 对话助手") as demo:
     for ex, text in [(ex1, "帮我写一份本周工作周报模板"),
                      (ex2, "用最通俗的话解释什么是机器学习"),
                      (ex3, "Python 入门推荐几本经典书籍")]:
-        ex.click(respond, [gr.State(text), chatbot], [welcome, chatbot]).then(
-            post_send, None, TOPBAR_SLOTS
+        ex.click(respond, [gr.State(text), chat_state], [*WELCOME_OUTS, chatbot]).then(
+            post_send, [chatbot], OUT_SLOTS
         )
 
 demo.queue()
