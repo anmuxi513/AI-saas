@@ -50,6 +50,7 @@ def build(entry, name, work, extra=None, excludes=None):
         "--exclude-module", "matplotlib",
         "--exclude-module", "pydoc",
         "--exclude-module", "test",
+        "--icon", os.path.join(ROOT, "assets", "app.ico"),
     ]
     if excludes:
         args += excludes
