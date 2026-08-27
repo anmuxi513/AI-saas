@@ -19,15 +19,15 @@ import os
 import sys
 import threading
 import time
+import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 sys.stdout.reconfigure(encoding="utf-8")
 
 import numpy as np
 from PIL import Image
-from tqdm import tqdm
 
 # ---------------- 路径 ----------------
 # 打包版（PyInstaller）: 资源在 _MEIPASS，用户数据在 exe 同目录
@@ -172,23 +172,111 @@ def _load_chat_model():
 
 # ---------------- 聊天模型下载（应用内下载 + 连续进度） ----------------
 # 状态: idle / downloading / done / error
-# 进度策略: 先取文件清单与总大小（一次 API 调用，毫秒级），
+# 进度策略: 先取文件清单与总大小（hf-mirror /api，毫秒级），
 #          再串行逐文件下载并累计总进度 → 0% 到 100% 连续不间断。
+# 下载源策略: ModelScope 直链优先（国内稳定）→ hf-mirror 回退 → 报错。
 _DL = {"running": False, "state": "idle", "cur": 0, "total": 0, "error": None}
 _DL_LOCK = threading.Lock()
 
+MODELSCOPE_BASE = "https://modelscope.cn/models"
+_MODEL_REV = "master"
+
+
+def _modelscope_url(relpath: str) -> str:
+    return (f"{MODELSCOPE_BASE}/{CHAT_MODEL_REPO}/resolve/{_MODEL_REV}/"
+            + urllib.parse.quote(relpath))
+
+
+def _download_one_file(relpath: str, size: int | None, progress=None) -> bool:
+    """下载单个文件（ModelScope 优先，失败回退 hf-mirror）。返回是否成功。
+
+    progress: 可选回调 progress(已下载字节数)，用于累计总进度。
+    """
+    dest = os.path.join(CHAT_MODEL_DIR, relpath)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+
+    # 断点续传: 已存在且大小一致 → 跳过
+    if size and os.path.isfile(dest) and os.path.getsize(dest) == size:
+        return True
+
+    # 1) ModelScope 直链（流式下载，约每 1MB 上报一次进度）
+    try:
+        req = urllib.request.Request(_modelscope_url(relpath))
+        with urllib.request.urlopen(req, timeout=60) as resp, open(dest, "wb") as f:
+            got = 0
+            last_report = 0
+            while True:
+                chunk = resp.read(1 << 16)
+                if not chunk:
+                    break
+                f.write(chunk)
+                got += len(chunk)
+                if progress and got - last_report >= (1 << 20):
+                    last_report = got
+                    progress(got)
+        if size and os.path.getsize(dest) != size:
+            raise OSError(f"大小不符: 期望 {size}, 实际 {os.path.getsize(dest)}")
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"⚠️  ModelScope 下载 {relpath} 失败（{type(e).__name__}），回退 hf-mirror...", flush=True)
+        try:
+            os.remove(dest)
+        except OSError:
+            pass
+
+    # 2) hf-mirror 回退（308 重定向等错误会被 huggingface_hub 抛出）
+    try:
+        from huggingface_hub import hf_hub_download
+        hf_hub_download(CHAT_MODEL_REPO, relpath, local_dir=CHAT_MODEL_DIR)
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"❌ hf-mirror 下载 {relpath} 也失败: {e}", flush=True)
+        return False
+
+
+def _fetch_file_list():
+    """多源获取模型文件清单 [(path, size)]。
+
+    依次尝试: hf-mirror tree API → 官方 huggingface.co tree API → ModelScope API。
+    返回 None 表示全部失败。
+    """
+    urls = [
+        f"https://hf-mirror.com/api/models/{CHAT_MODEL_REPO}/tree/main?recursive=true",
+        f"https://huggingface.co/api/models/{CHAT_MODEL_REPO}/tree/main?recursive=true",
+        f"https://modelscope.cn/api/v1/models/{CHAT_MODEL_REPO}/repo/files?Recursive=true&Revision=master",
+    ]
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "AImomo/0.1"})
+            data = json.loads(urllib.request.urlopen(req, timeout=30).read())
+            if isinstance(data, list):
+                # HF tree API: [{path, size, type}]
+                return [(d["path"], d.get("size"))
+                        for d in data if d.get("type") == "file"]
+            # ModelScope API: {Code, Data: {Files: [{Path, Size, Type}]}}
+            files = data.get("Data", {}).get("Files", [])
+            return [(d["Path"], d.get("Size"))
+                    for d in files if d.get("Type") == "file"]
+        except Exception as e:  # noqa: BLE001
+            print(f"⚠️  文件列表源失败 {url[:70]}: {type(e).__name__}", flush=True)
+    return None
+
 
 def _download_chat_model_task():
-    """后台下载线程：串行逐文件下载，进度连续累计（0→100%）。"""
-    from huggingface_hub import HfApi, hf_hub_download
-
-    # 国内镜像（已有环境变量则尊重）
+    """后台下载线程：文件清单 → 串行多源下载 → 累计进度 → 自动加载。"""
     os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
     os.makedirs(os.path.dirname(CHAT_MODEL_DIR), exist_ok=True)
 
-    # 阶段一: 获取文件清单与总大小（毫秒级，前端几乎感觉不到）
-    files = HfApi().model_info(CHAT_MODEL_REPO, files_metadata=True).siblings
-    total = sum((f.size or 0) for f in files)
+    # 阶段一: 文件清单与总大小（多源 API，毫秒级）
+    files = _fetch_file_list()
+    if not files:
+        with _DL_LOCK:
+            _DL["running"] = False
+            _DL["state"] = "error"
+            _DL["error"] = "获取模型文件列表失败（所有源均不可用），请检查网络后重试"
+        print("❌ 获取文件列表失败（所有源）", flush=True)
+        return
+    total = sum((size or 0) for _, size in files)
     with _DL_LOCK:
         _DL["running"] = True
         _DL["state"] = "downloading"
@@ -198,23 +286,21 @@ def _download_chat_model_task():
 
     done = 0
 
-    class _FileProgress(tqdm):
-        """单文件 tqdm → 累计到总进度（cur = 已完成文件 + 当前文件进度）。"""
-
-        def update(self, n=1):
-            super().update(n)
-            with _DL_LOCK:
-                _DL["cur"] = min(done + int(self.n), total)
+    def report(cur_bytes: int):
+        with _DL_LOCK:
+            _DL["cur"] = min(cur_bytes, total)
 
     try:
-        for f in files:
-            if f.size:
-                hf_hub_download(CHAT_MODEL_REPO, f.rfilename,
-                                local_dir=CHAT_MODEL_DIR, tqdm_class=_FileProgress)
-                done += f.size
+        for relpath, size in files:
+            if size:
+                ok = _download_one_file(relpath, size,
+                                        progress=lambda b: report(done + b))
+                if not ok:
+                    raise RuntimeError(f"所有下载源均失败: {relpath}")
+                done += size
+                report(done)
             else:
-                # 无大小元数据的小文件（如目录项）：直接下载不计进度
-                hf_hub_download(CHAT_MODEL_REPO, f.rfilename, local_dir=CHAT_MODEL_DIR)
+                _download_one_file(relpath, None)
         with _DL_LOCK:
             _DL["running"] = False
             _DL["state"] = "done"
