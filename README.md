@@ -138,6 +138,7 @@ python scripts/build_portal.py all
 ```
 
 打包版特性：
+- **桌面应用**：双击 exe 直接打开应用窗口（WebView2 内核，无需浏览器），关闭窗口即退出
 - **识别功能开箱即用**（ONNX 模型已内置）
 - **聊天功能**首次运行提示下载模型：双击「下载聊天模型.exe」（自动 hf-mirror 国内镜像）
 - 模型存于 exe 同目录 `chat_model/`，删除即卸载

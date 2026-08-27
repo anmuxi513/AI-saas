@@ -76,9 +76,14 @@ def build_portal():
         add_data += ["--add-data", r]
     # 让分析阶段能找到 projects/chat（app.py 运行时才 insert sys.path）
     add_data += ["--paths", os.path.join(ROOT, "projects", "chat")]
+    # 桌面窗口（pywebview）：收集 WebView2 DLL + 后端模块（动态选择）
+    import webview as _wv
+    wv_lib = os.path.join(os.path.dirname(_wv.__file__), "lib")
+    add_data += ["--add-data", wv_lib + SEP + "webview/lib"]
+    add_data += ["--hidden-import", "webview.platforms.edgechromium"]
 
-    print("🔨 打包门户服务（含 ONNX 模型 + 前端）...")
-    build("server/app.py", "AI训练平台", "portal", add_data)
+    print("🔨 打包门户服务（桌面应用 + ONNX 模型 + 前端）...")
+    build("server/desktop.py", "AI训练平台", "portal", add_data)
     return os.path.join(ROOT, "dist_portal", "AI训练平台")
 
 
