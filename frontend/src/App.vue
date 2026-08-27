@@ -56,8 +56,8 @@ onMounted(() => {
           </svg>
         </div>
         <div class="brand-text">
-          <div class="brand-name">AI 训练平台</div>
-          <div class="brand-sub">Enterprise</div>
+          <div class="brand-name">AImomo</div>
+          <div class="brand-sub">AI Assistant</div>
         </div>
       </div>
 

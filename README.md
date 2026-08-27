@@ -117,32 +117,27 @@ python projects/chat/app.py                # 持续对话界面 http://localhost
 
 训练产物 `.pth` 只有 PyTorch 能读；`export_onnx.py` 把它导出为 `.onnx`（结构+权重一体），对方只需 `pip install onnxruntime` 即可在任意语言/平台推理，不需要 PyTorch。详见各模块的 export 脚本注释与 `projects/mnist/deploy/使用说明.md`。
 
-## 软件打包（绿色版分发）
+## 软件打包（单 exe 分发）
 
-把门户服务打包成免安装程序（PyInstaller），别人**下载解压双击即用**：
+把 AImomo 门户打包成**单个 exe**（PyInstaller onefile），别人**下载一个文件即可使用**：
 
 ```bash
 # 0. 前置：前端产物最新
 cd frontend && npm run build
 
-# 1. 打包（产物 → dist_portal/，两个 exe 分进程构建，约 5-10 分钟）
-python scripts/build_portal.py all
-#    也可单独: portal（门户） / downloader（聊天模型下载工具）
+# 1. 打包（产物 → dist_portal/AImomo.exe，约 280MB，需 5-10 分钟）
+python scripts/build_portal.py
 
-# 2. 压缩分发
-#    dist_portal/ 内含:
-#      AI训练平台.exe     门户服务（含前端 + MNIST/EuroSAT 模型，90MB）
-#      下载聊天模型.exe    Qwen 一键下载工具（79MB，国内镜像）
-#      使用说明.txt
-#    手动压缩为 zip 发布（约 320MB；Qwen 权重 1GB 不入包，按需下载）
+# 2. 压缩分发（zip 内仅 AImomo.exe + 使用说明.txt，约 278MB）
+#    可选: python scripts/build_portal.py onedir（目录版，调试用）
 ```
 
 打包版特性：
-- **桌面应用**：双击 exe 直接打开应用窗口（WebView2 内核，无需浏览器），关闭窗口即退出
-- **识别功能开箱即用**（ONNX 模型已内置）
-- **聊天功能**首次运行提示下载模型：双击「下载聊天模型.exe」（自动 hf-mirror 国内镜像）
-- 模型存于 exe 同目录 `chat_model/`，删除即卸载
-- 纯本地运行，数据不出本机；杀软误报时添加信任即可
+- **单文件桌面应用**：双击 AImomo.exe 直接打开窗口（无黑窗、无需浏览器、无需安装）
+- **识别功能开箱即用**（MNIST/EuroSAT ONNX 模型已内置）
+- **聊天模型应用内下载**：侧边栏底部「下载聊天模型」→ 连续进度条 → 自动加载
+- 模型存于 exe 同目录 `chat_model/`，删除即卸载；日志在 `logs/app.log`
+- 首次启动需解压运行环境（10-60 秒）；纯本地运行，数据不出本机
 
 ## 版本库说明（Git）
 

@@ -1,20 +1,19 @@
-"""打包脚本：把统一门户服务打包成绿色版（PyInstaller onedir）。
+"""打包脚本：把 AImomo 门户打包成单个 exe（PyInstaller onefile）。
 
 用法:
-    python scripts/build_portal.py            # 打包全部
-    python scripts/build_portal.py portal     # 只打包门户服务
-    python scripts/build_portal.py downloader # 只打包聊天模型下载工具
+    python scripts/build_portal.py          # 默认: 打包门户（单个 AImomo.exe）
+    python scripts/build_portal.py onefile  # 同上（显式）
+    python scripts/build_portal.py onedir   # 目录版（调试用，启动更快）
+    python scripts/build_portal.py downloader  # 可选: 独立模型下载工具（一般不需要）
 
 产物:
-    dist_portal/AI训练平台.exe        门户服务（双击启动）
-    dist_portal/下载聊天模型.exe       一键下载 Qwen 模型（约 1GB，国内镜像）
+    dist_portal/AImomo.exe       单文件桌面应用（双击即用，无黑窗）
+    内置: 前端页面 + MNIST/EuroSAT 模型 + 应用内模型下载
 
 说明:
-    - 打包包含: 前端构建产物 + MNIST/EuroSAT ONNX 模型 + 类别表
-    - 不包含: Qwen 聊天权重（用户运行「下载聊天模型.exe」按需获取）
-    - 两个程序必须分开构建目录，避免 PyInstaller 模块图缓存串包
-      （否则下载工具会错误带上门户的 torch/transformers 依赖）
+    - 聊天模型（Qwen 约 1GB）不入包，由应用内「下载聊天模型」功能按需安装
     - 打包前请先 `cd frontend && npm run build` 确保 dist 最新
+    - 首次启动 onefile 会解压到临时目录，稍慢属正常现象
 """
 import argparse
 import os
@@ -26,6 +25,7 @@ import PyInstaller.__main__
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 SEP = os.pathsep  # Windows: ';'
+APP_NAME = "AImomo"
 
 
 def data(src, dst):
@@ -33,11 +33,11 @@ def data(src, dst):
     return os.path.join(ROOT, src) + SEP + dst
 
 
-def build(entry, name, work, extra=None, excludes=None, console=True):
+def build(entry, name, work, extra=None, excludes=None, onefile=True, console=False):
     args = [
         entry,
         "--name", name,
-        "--onedir",
+        "--onefile" if onefile else "--onedir",
         "--noconfirm",
         "--clean",
         "--console" if console else "--noconsole",
@@ -59,7 +59,7 @@ def build(entry, name, work, extra=None, excludes=None, console=True):
     PyInstaller.__main__.run(args)
 
 
-def build_portal():
+def build_portal(onefile=True):
     index = os.path.join(ROOT, "frontend", "dist", "index.html")
     if not os.path.isfile(index):
         print(f"❌ 缺少前端构建产物: {index}")
@@ -84,64 +84,55 @@ def build_portal():
     add_data += ["--hidden-import", "webview.platforms.edgechromium"]
     add_data += ["--add-data", os.path.join(ROOT, "server", "splash.html") + SEP + "splash.html"]
 
-    print("🔨 打包门户服务（桌面应用 + ONNX 模型 + 前端）...")
-    # noconsole: 无黑色控制台窗口，日志写入 exe 旁 logs/app.log
-    build("server/desktop.py", "AI训练平台", "portal", add_data, console=False)
-    return os.path.join(ROOT, "dist_portal", "AI训练平台")
+    mode = "单文件 exe" if onefile else "目录版"
+    print(f"🔨 打包 AImomo（{mode}，含 ONNX 模型 + 前端）...")
+    build("server/desktop.py", APP_NAME, "portal", add_data, onefile=onefile)
+    return os.path.join(ROOT, "dist_portal", APP_NAME + ".exe" if onefile else APP_NAME)
 
 
 def build_downloader():
-    print("🔨 打包聊天模型下载工具...")
-    # 强制排除门户的大依赖（PyInstaller 模块图磁盘缓存可能串包，双保险）
+    print("🔨 打包聊天模型下载工具（可选）...")
     excludes = []
     for mod in ("torch", "transformers", "torchvision", "onnxruntime",
                 "pandas", "PIL", "IPython", "jedi", "matplotlib", "gradio"):
         excludes += ["--exclude-module", mod]
-    build("server/tools/download_chat_model.py", "下载聊天模型", "downloader", excludes=excludes)
-    return os.path.join(ROOT, "dist_portal", "下载聊天模型")
+    build("server/tools/download_chat_model.py", "下载聊天模型", "downloader",
+          excludes=excludes, onefile=True, console=True)
+    return os.path.join(ROOT, "dist_portal", "下载聊天模型.exe")
 
 
 def report(paths):
     print("\n✅ 打包完成！产物目录: dist_portal/")
     for p in paths:
         if os.path.isdir(p):
-            total = sum(f.stat().st_size
-                        for f in os.scandir(p) if f.is_file())
+            total = sum(f.stat().st_size for f in os.scandir(p) if f.is_file())
             internal = os.path.join(p, "_internal")
             if os.path.isdir(internal):
                 total += sum(f.stat().st_size
                              for f in os.scandir(internal) if f.is_file())
-            # _internal 子目录（torch 等）递归统计
             for root, dirs, files in os.walk(os.path.join(p, "_internal")):
                 if root == internal:
                     continue
                 total += sum(os.path.getsize(os.path.join(root, f)) for f in files)
             print(f"   {os.path.basename(p)}: {total / 1024 / 1024:.0f} MB")
-    print("   双击「AI训练平台.exe」启动，浏览器打开 http://localhost:6660")
+        else:
+            print(f"   {os.path.basename(p)}: {os.path.getsize(p) / 1024 / 1024:.0f} MB")
+    print("   双击「AImomo.exe」启动，桌面应用直接打开")
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("target", nargs="?", choices=["portal", "downloader", "all"], default="all")
+    parser.add_argument("target", nargs="?",
+                        choices=["onefile", "onedir", "downloader"], default="onefile")
     args = parser.parse_args()
 
     os.chdir(ROOT)
-    if args.target == "all":
-        # 必须在独立进程分别打包：PyInstaller 模块图缓存进程级共享，
-        # 同进程连续打包会把门户的 torch/transformers 依赖串进下载工具
-        import subprocess
-        subprocess.run([sys.executable, os.path.abspath(__file__), "portal"], check=True)
-        subprocess.run([sys.executable, os.path.abspath(__file__), "downloader"], check=True)
-        report([os.path.join(ROOT, "dist_portal", "AI训练平台"),
-                os.path.join(ROOT, "dist_portal", "下载聊天模型")])
-        return
-
-    built = []
-    if args.target == "portal":
-        built.append(build_portal())
+    if args.target == "onefile":
+        report([build_portal(onefile=True)])
+    elif args.target == "onedir":
+        report([build_portal(onefile=False)])
     else:
-        built.append(build_downloader())
-    report(built)
+        report([build_downloader()])
 
 
 if __name__ == "__main__":

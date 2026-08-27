@@ -1,4 +1,4 @@
-"""AI 模型训练平台 · 统一门户服务（单端口 6660）。
+"""AImomo · 统一门户服务（单端口 6660）。
 
 一个服务整合所有能力:
   - 前端页面托管        frontend/dist 的 Vue 3 构建产物
@@ -170,37 +170,63 @@ def _load_chat_model():
         print(f"❌ 聊天模型加载失败: {e}", flush=True)
 
 
-# ---------------- 聊天模型下载（应用内下载 + 进度） ----------------
+# ---------------- 聊天模型下载（应用内下载 + 连续进度） ----------------
 # 状态: idle / downloading / done / error
+# 进度策略: 先取文件清单与总大小（一次 API 调用，毫秒级），
+#          再串行逐文件下载并累计总进度 → 0% 到 100% 连续不间断。
 _DL = {"running": False, "state": "idle", "cur": 0, "total": 0, "error": None}
 _DL_LOCK = threading.Lock()
 
 
-class _DL_Tqdm(tqdm):
-    """把 tqdm 进度同步到 _DL 状态（供 /api/model/status 轮询）。"""
-
-    def update(self, n=1):
-        super().update(n)
-        with _DL_LOCK:
-            _DL["cur"] = int(self.n)
-            _DL["total"] = int(self.total) if self.total else 0
-
-
 def _download_chat_model_task():
-    """后台下载线程：snapshot_download 到 chat_model/，完成后自动加载。"""
-    from huggingface_hub import snapshot_download
+    """后台下载线程：串行逐文件下载，进度连续累计（0→100%）。"""
+    from huggingface_hub import HfApi, hf_hub_download
+
+    # 国内镜像（已有环境变量则尊重）
+    os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
     os.makedirs(os.path.dirname(CHAT_MODEL_DIR), exist_ok=True)
-    snapshot_download(
-        CHAT_MODEL_REPO,
-        local_dir=CHAT_MODEL_DIR,
-        tqdm_class=_DL_Tqdm,
-    )
+
+    # 阶段一: 获取文件清单与总大小（毫秒级，前端几乎感觉不到）
+    files = HfApi().model_info(CHAT_MODEL_REPO, files_metadata=True).siblings
+    total = sum((f.size or 0) for f in files)
     with _DL_LOCK:
-        _DL["running"] = False
-        _DL["state"] = "done"
-        _DL["cur"] = _DL["total"] = 0
-    print("✅ 聊天模型下载完成，开始加载...", flush=True)
-    threading.Thread(target=_load_chat_model, daemon=True).start()
+        _DL["running"] = True
+        _DL["state"] = "downloading"
+        _DL["cur"] = 0
+        _DL["total"] = total
+        _DL["error"] = None
+
+    done = 0
+
+    class _FileProgress(tqdm):
+        """单文件 tqdm → 累计到总进度（cur = 已完成文件 + 当前文件进度）。"""
+
+        def update(self, n=1):
+            super().update(n)
+            with _DL_LOCK:
+                _DL["cur"] = min(done + int(self.n), total)
+
+    try:
+        for f in files:
+            if f.size:
+                hf_hub_download(CHAT_MODEL_REPO, f.rfilename,
+                                local_dir=CHAT_MODEL_DIR, tqdm_class=_FileProgress)
+                done += f.size
+            else:
+                # 无大小元数据的小文件（如目录项）：直接下载不计进度
+                hf_hub_download(CHAT_MODEL_REPO, f.rfilename, local_dir=CHAT_MODEL_DIR)
+        with _DL_LOCK:
+            _DL["running"] = False
+            _DL["state"] = "done"
+            _DL["cur"] = _DL["total"] = 0
+        print("✅ 聊天模型下载完成，开始加载...", flush=True)
+        threading.Thread(target=_load_chat_model, daemon=True).start()
+    except Exception as e:  # noqa: BLE001
+        with _DL_LOCK:
+            _DL["running"] = False
+            _DL["state"] = "error"
+            _DL["error"] = str(e)
+        print(f"❌ 模型下载失败: {e}", flush=True)
 
 
 threading.Thread(target=_load_chat_model, daemon=True).start()
@@ -455,7 +481,7 @@ def _title_of(sid: str) -> str:
 
 
 if __name__ == "__main__":
-    print(f"🚀 AI 模型训练平台门户启动: http://localhost:{PORT}")
+    print(f"🚀 AImomo 服务启动: http://localhost:{PORT}")
     if not os.path.isfile(INDEX):
         print(f"⚠️  未找到前端构建产物: {INDEX}")
         print(f"   请先执行: cd frontend && npm run build")

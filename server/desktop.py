@@ -56,7 +56,7 @@ def main():
     # 先显示启动画面，服务就绪后自动切换到主应用
     splash = _splash_url()
     window = webview.create_window(
-        "AI 训练平台",
+        "AImomo",
         splash or url,
         width=1280,
         height=840,
