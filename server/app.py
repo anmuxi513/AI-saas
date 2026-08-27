@@ -199,30 +199,35 @@ def _download_one_file(relpath: str, size: int | None, progress=None) -> bool:
     if size and os.path.isfile(dest) and os.path.getsize(dest) == size:
         return True
 
-    # 1) ModelScope 直链（流式下载，约每 1MB 上报一次进度）
-    try:
-        req = urllib.request.Request(_modelscope_url(relpath))
-        with urllib.request.urlopen(req, timeout=60) as resp, open(dest, "wb") as f:
-            got = 0
-            last_report = 0
-            while True:
-                chunk = resp.read(1 << 16)
-                if not chunk:
-                    break
-                f.write(chunk)
-                got += len(chunk)
-                if progress and got - last_report >= (1 << 20):
-                    last_report = got
-                    progress(got)
-        if size and os.path.getsize(dest) != size:
-            raise OSError(f"大小不符: 期望 {size}, 实际 {os.path.getsize(dest)}")
-        return True
-    except Exception as e:  # noqa: BLE001
-        print(f"⚠️  ModelScope 下载 {relpath} 失败（{type(e).__name__}），回退 hf-mirror...", flush=True)
+    # 1) ModelScope 直链（流式下载，约每 1MB 上报一次进度；失败自动重试 2 次）
+    for dl_attempt in range(3):
         try:
-            os.remove(dest)
-        except OSError:
-            pass
+            req = urllib.request.Request(_modelscope_url(relpath))
+            with urllib.request.urlopen(req, timeout=60) as resp, open(dest, "wb") as f:
+                got = 0
+                last_report = 0
+                while True:
+                    chunk = resp.read(1 << 16)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    got += len(chunk)
+                    if progress and got - last_report >= (1 << 20):
+                        last_report = got
+                        progress(got)
+            if size and os.path.getsize(dest) != size:
+                raise OSError(f"大小不符: 期望 {size}, 实际 {os.path.getsize(dest)}")
+            return True
+        except Exception as e:  # noqa: BLE001
+            try:
+                os.remove(dest)
+            except OSError:
+                pass
+            if dl_attempt < 2:
+                print(f"⚠️  ModelScope 下载 {relpath} 第 {dl_attempt + 1} 次失败（{type(e).__name__}），重试...", flush=True)
+                time.sleep(1.0 * (dl_attempt + 1))
+            else:
+                print(f"⚠️  ModelScope 下载 {relpath} 失败，回退 hf-mirror...", flush=True)
 
     # 2) hf-mirror 回退（308 重定向等错误会被 huggingface_hub 抛出）
     try:
@@ -238,7 +243,7 @@ def _fetch_file_list():
     """多源获取模型文件清单 [(path, size)]。
 
     依次尝试: hf-mirror tree API → 官方 huggingface.co tree API → ModelScope API。
-    返回 None 表示全部失败。
+    每个源自动重试 3 次（带退避），吸收瞬时网络故障；全部失败返回 None。
     """
     urls = [
         f"https://hf-mirror.com/api/models/{CHAT_MODEL_REPO}/tree/main?recursive=true",
@@ -246,19 +251,23 @@ def _fetch_file_list():
         f"https://modelscope.cn/api/v1/models/{CHAT_MODEL_REPO}/repo/files?Recursive=true&Revision=master",
     ]
     for url in urls:
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "AImomo/0.1"})
-            data = json.loads(urllib.request.urlopen(req, timeout=30).read())
-            if isinstance(data, list):
-                # HF tree API: [{path, size, type}]
-                return [(d["path"], d.get("size"))
-                        for d in data if d.get("type") == "file"]
-            # ModelScope API: {Code, Data: {Files: [{Path, Size, Type}]}}
-            files = data.get("Data", {}).get("Files", [])
-            return [(d["Path"], d.get("Size"))
-                    for d in files if d.get("Type") == "file"]
-        except Exception as e:  # noqa: BLE001
-            print(f"⚠️  文件列表源失败 {url[:70]}: {type(e).__name__}", flush=True)
+        for attempt in range(3):
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "AImomo/0.1"})
+                data = json.loads(urllib.request.urlopen(req, timeout=30).read())
+                if isinstance(data, list):
+                    # HF tree API: [{path, size, type}]
+                    return [(d["path"], d.get("size"))
+                            for d in data if d.get("type") == "file"]
+                # ModelScope API: {Code, Data: {Files: [{Path, Size, Type}]}}
+                files = data.get("Data", {}).get("Files", [])
+                return [(d["Path"], d.get("Size"))
+                        for d in files if d.get("Type") == "file"]
+            except Exception as e:  # noqa: BLE001
+                if attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))   # 退避后重试同一源
+                else:
+                    print(f"⚠️  文件列表源失败 {url[:70]}: {type(e).__name__}", flush=True)
     return None
 
 
